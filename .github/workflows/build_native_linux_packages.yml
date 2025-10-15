@@ -20,7 +20,7 @@ on:
         type: string
       package_suffix:
         description: The suffix to be added to package name(build_no or master or rc or combiantion).
-        required: true
+        required: false
         type: string
   workflow_dispatch:
     inputs:
@@ -51,7 +51,8 @@ on:
         default: "rpm"
       package_suffix:
         description: The suffix to be added to package name(build_no or master or rc or combiantion).
-        type: string
+        type: false
+        default: "nightly"
 
 permissions:
   id-token: write
@@ -66,7 +67,7 @@ jobs:
     env:
       AWS_SHARED_CREDENTIALS_FILE: /home/awsconfig/credentials.ini
       BUILD_IMAGE: ghcr.io/rocm/therock_build_manylinux_x86_64@sha256:3ac188c17f88f08ce522297b616d8308361b8e9a9b31bcc3c3bbb9429b1efa6c
-      ARTIFACT_RUN_ID: "${{ inputs.artifact_run_id != '' && inputs.artifact_run_id || github.run_id }}"
+      ARTIFACT_RUN_ID: ${{ inputs.artifact_run_id || github.run_id }}
       OUTPUT_DIR: ${{ github.workspace }}/output
       ARTIFACTS_DIR: ${{ github.workspace }}/output/artifacts
       PACKAGE_DIST_DIR: ${{ github.workspace }}/output/packages
@@ -78,17 +79,23 @@ jobs:
       - name: Install Python requirements
         run: |
           pip install pyelftools boto3 jinja2
-          sudo apt install -y llvm debhelper-compat build-essential
+
+      - name: Install System requirements
+        run: |
+          # Install the needed tools for creating rpm / deb packages
+          # Also install tools for creating repo files
+          sudo apt update
+          sudo apt install -y llvm
+          sudo apt install -y rpm debhelper-compat build-essential
+          sudo apt install -y dpkg-dev createrepo-c
 
       - name: Fetch Artifacts
-        # TODO: Currently fetch artifacts is part of build package itself. Need to seperate it out
         run: |
           echo "Fetching artifacts for build ${{ inputs.artifact_run_id }}"
           python ./build_tools/fetch_artifacts.py \
             --run-id=${{ env.ARTIFACT_RUN_ID }} \
             --run-github-repo="ROCm/TheRock" \
             --target=${{ inputs.amdgpu_family }} \
-            --base-only \
             --output-dir=${{ env.ARTIFACTS_DIR }}
 
       - name: Build Packages
@@ -98,20 +105,10 @@ jobs:
           python ./build_tools/packaging/linux/build_package.py \
             --dest-dir ${{ env.PACKAGE_DIST_DIR }} \
             --rocm-version  ${{ inputs.rocm_version }} \
-            --target ${{ inputs.amdgpu_family }} \
+            --target  ${{ inputs.amdgpu_family }} \
             --artifacts-dir ${{ env.ARTIFACTS_DIR }} \
             --pkg-type ${{ inputs.package_type }} \
-            --pkg-names rocm-core hsa-rocr \
             --version-suffix ${{ inputs.package_suffix }}
-
-      - name: Install repo tools
-        run: |
-          if [[ "${{ inputs.package_type }}" == "deb" ]]; then
-            sudo apt-get update
-            sudo apt-get install -y dpkg-dev
-          else
-            sudo apt-get install -y createrepo-c
-          fi
 
       - name: Install AWS CLI
         run: bash ./dockerfiles/install_awscli.sh
@@ -120,7 +117,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           aws-region: us-east-2
-          role-to-assume: arn:aws:iam::692859939525:role/therock-artifacts
+          role-to-assume: arn:aws:iam::692859939525:role/therock-artifacts-external
 
       - name: Upload Package repo to S3
         id: upload-packages

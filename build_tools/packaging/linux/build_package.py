@@ -5,7 +5,7 @@
 
 
 """Given ROCm artifacts directories, performs packaging to
-create RPM and DEB packages and upload to artifactory server
+create RPM and DEB packages and stores to OUTPUT folder
 
 ```
 ./build_package.py --artifacts-dir ./ARTIFACTS_DIR  \
