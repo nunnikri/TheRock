@@ -30,16 +30,14 @@ def run_command(cmd, cwd=None):
     print(f"Running: {cmd}")
     subprocess.run(cmd, shell=True, check=True, cwd=cwd)
 
-def find_package_dir():
+def find_package_dir(package_dir):
     """
-    Finds the default output dir for packages.
-    Expects packages in ./output/packages
+    Verifies the provided package directory.
     """
-    base_dir = os.path.join(os.getcwd(), "output", "packages")
-    if not os.path.exists(base_dir):
-        raise RuntimeError(f"Package directory not found: {base_dir}")
-    print(f"Using package directory: {base_dir}")
-    return base_dir
+    if not os.path.exists(package_dir):
+        raise RuntimeError(f"Package directory not found: {package_dir}")
+    print(f"Using package directory: {package_dir}")
+    return package_dir
 
 def create_deb_repo(package_dir, origin_name):
     """Function to create rpm repo
@@ -138,6 +136,7 @@ def main():
     parser.add_argument("--s3-bucket", required=True, help="Target S3 bucket name")
     parser.add_argument("--amdgpu-family", required=True, help="AMDGPU family identifier (e.g., gfx94X)")
     parser.add_argument("--artifact-id", required=True, help="Unique artifact ID or version tag")
+    parser.add_argument("--package-dir", required=True, help="Directory containing packages to process")
     args = parser.parse_args()
 
     package_dir = find_package_dir()
